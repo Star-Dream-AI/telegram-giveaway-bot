@@ -1,0 +1,111 @@
+# =============================================================================
+# English localization / 英文文案
+# Edit all English messages of the giveaway bot here.
+# Each key should match zh.yaml.
+# -----------------------------------------------------------------------------
+# Placeholders / 占位符:
+#   {title}, {id}, {count}, {tier}, {channels}, {ends_at}, {prizes}, {target}
+# =============================================================================
+
+start:
+  welcome: |
+    👋 Welcome to the Giveaway Bot!
+    Send /help for the command list.
+  help: |
+    📖 Commands
+
+    • /start — Welcome
+    • /help — This help
+    • /lang — Switch language (zh / en)
+    • /me — Giveaways I joined
+
+    Admin commands (admins only)
+    • /newgiveaway — Create a new giveaway
+    • /list — Running giveaways I created
+    • /cancel <id> — Cancel a giveaway
+    • /reroll <id> <tier> — Re-roll a prize tier
+    • /ban <user_id> [reason] — Blacklist a user
+    • /unban <user_id> — Remove from blacklist
+    • /addadmin <user_id> — Promote a user to admin
+  lang_prompt: Please choose a language / 请选择语言:
+  lang_set: ✅ Language set to English.
+  me_empty: You haven't joined any giveaways yet.
+  me_header: "Your recent giveaways (last {count}):"
+  me_row: "• #{id} {title} — status: {status}"
+
+common:
+  cancel: Canceled.
+  not_admin: ❌ You are not an admin.
+  in_private_only: Please use this command in a private chat with the bot.
+  unknown_error: Something went wrong, please retry later.
+
+button:
+  join: ✅ Join
+  joined: ✅ Joined
+  verify: 🛡 Verify
+  open_channel: 🔗 Open channel
+  refresh: 🔄 Refresh
+
+join:
+  ok: 🎉 You're in! Good luck.
+  already: You've already joined this giveaway.
+  banned: You are blacklisted from this giveaway.
+  not_member: "Please join the following channels first:\n{channels}"
+  ended: This giveaway has ended.
+  need_verify: "Please complete the captcha first:\n{url}"
+
+giveaway:
+  running_header: "🎁 Giveaway #{id} — running"
+  finished_header: "🏁 Giveaway #{id} — finished"
+  canceled: "❌ Giveaway #{id} has been canceled."
+  no_participants: No participants — giveaway voided.
+  winners_header: "Winners:"
+  winner_line: "• {tier}: {mention}"
+  count_label: "{count} joined"
+  ends_label: "Ends at: {ends_at}"
+  prizes_label: "Prizes:\n{prizes}"
+
+winner_dm:
+  body: |
+    🎉 Congrats! You won at "{title}".
+    Tier: {tier}
+    The host will follow up shortly, or DM {creator}.
+
+fsm:
+  enter_title: "1/7 Send the giveaway title (/cancel to abort)"
+  enter_description: "2/7 Send the giveaway description, or send - to skip"
+  enter_prizes: |
+    3/7 Send prize tiers, one per line, e.g.
+    First:1
+    Second:3
+    Consolation:5
+    Both ASCII and full-width colons are accepted.
+  enter_channels: |
+    4/7 Send required channel usernames separated by spaces or newlines, e.g.
+    @your_channel @another_channel
+    Send - to skip channel-membership checks.
+  enter_duration: |
+    5/7 Send a countdown like 10m / 2h / 3d,
+    or an absolute local time: 2026-06-10 18:00
+  enter_turnstile: 6/7 Require Cloudflare captcha? Send yes / no
+  enter_target: |
+    7/7 Where should the giveaway post go? Choose one:
+    • Forward any message FROM the target group/channel here
+    • Send @groupname or @channelname
+    • Send the numeric chat_id (e.g. -1001234567890)
+    Note: the bot must already be a member of the target chat.
+  bad_target: Cannot resolve target. Make sure the bot has been added to the chat, then retry.
+  confirm: |
+    Please confirm:
+    Title: {title}
+    Prizes:
+    {prizes}
+    Required channels: {channels}
+    Ends at: {ends_at}
+    Turnstile: {turnstile}
+    Posting to: {target}
+
+    Send ok to confirm, /cancel to abort.
+  bad_prizes: Invalid prize format. Use "name:count" one per line (ASCII or full-width colon).
+  bad_duration: Invalid duration. Try 10m / 2h / 2026-06-10 18:00.
+  saved: ✅ Saved. The giveaway will be drawn automatically when it ends.

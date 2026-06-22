@@ -1,0 +1,19 @@
+[project]
+name = "tg-giveaway-bot"
+version = "0.1.0"
+description = "Customizable Telegram giveaway bot with optional Cloudflare Turnstile anti-bot verification"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]

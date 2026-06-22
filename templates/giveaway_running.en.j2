@@ -1,0 +1,30 @@
+{# =============================================================================
+   Giveaway running (English) / 抽奖进行中(英文)
+   You can freely edit this template. Available variables:
+   id, title, description, prizes ([{name,count},...]),
+   channels (list[str]), ends_at (str), count (int), turnstile (bool)
+   ============================================================================= #}
+🎁 <b>Giveaway #{{ id }}</b>
+
+<b>{{ title }}</b>
+
+{% if description %}
+{{ description }}
+
+{% endif %}
+🏆 Prizes:
+{% for tier in prizes %}
+• {{ tier.name }} × {{ tier.count }}
+{% endfor %}
+
+{% if channels %}
+📢 Please join the channels first:
+{% for ch in channels %}
+• {{ ch }}
+{% endfor %}
+
+{% endif %}
+{% if turnstile %}🛡 Cloudflare CAPTCHA is required to enter.
+{% endif %}
+⏰ Ends at: {{ ends_at }}
+👥 Joined: {{ count }}

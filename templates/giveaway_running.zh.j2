@@ -1,0 +1,30 @@
+{# =============================================================================
+   抽奖进行中(中文) / Giveaway running (Chinese)
+   用户可自由修改本模板。可用变量见 README 模板章节,或对照下方现有占位:
+   Variables: id, title, description, prizes ([{name,count},...]),
+   channels (list[str]), ends_at (str), count (int), turnstile (bool)
+   ============================================================================= #}
+🎁 <b>抽奖 #{{ id }}</b>
+
+<b>{{ title }}</b>
+
+{% if description %}
+{{ description }}
+
+{% endif %}
+🏆 奖品:
+{% for tier in prizes %}
+• {{ tier.name }} × {{ tier.count }}
+{% endfor %}
+
+{% if channels %}
+📢 参与前请加入频道:
+{% for ch in channels %}
+• {{ ch }}
+{% endfor %}
+
+{% endif %}
+{% if turnstile %}🛡 本次需完成 Cloudflare 人机验证。
+{% endif %}
+⏰ 结束时间:{{ ends_at }}
+👥 已报名:{{ count }} 人

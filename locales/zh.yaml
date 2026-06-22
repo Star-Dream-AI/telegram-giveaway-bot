@@ -1,0 +1,119 @@
+# =============================================================================
+# 中文文案 / Chinese localization
+# 在这里改抽奖 bot 的所有中文提示语。每个 key 在 en.yaml 应有对应翻译。
+# Edit all Chinese messages of the giveaway bot here.
+# Each key should have a matching translation in en.yaml.
+# -----------------------------------------------------------------------------
+# 占位符说明 / Placeholder reference:
+#   {title}            抽奖标题 / giveaway title
+#   {id}               抽奖编号 / giveaway id
+#   {count}            人数 / count
+#   {tier}             奖品等级 / prize tier name
+#   {channels}         必加频道列表(已格式化)/ formatted required-channels list
+#   {ends_at}          结束时间(本地化字符串)/ localized end time
+#   {prizes}           奖品分级摘要 / prize tiers summary
+#   {target}           抽奖帖发布目标 / publish target (group/channel name)
+# =============================================================================
+
+start:
+  welcome: |
+    👋 欢迎使用抽奖 Bot!
+    用 /help 查看命令列表。
+  help: |
+    📖 命令列表
+
+    • /start — 欢迎信息
+    • /help — 帮助
+    • /lang — 切换语言(zh / en)
+    • /me — 我参与过的抽奖
+
+    管理员命令(仅限管理员)
+    • /newgiveaway — 创建新抽奖
+    • /list — 我创建的进行中抽奖
+    • /cancel <id> — 取消抽奖
+    • /reroll <id> <tier> — 重抽某等奖
+    • /ban <user_id> [reason] — 拉黑用户
+    • /unban <user_id> — 解禁
+    • /addadmin <user_id> — 添加管理员
+  lang_prompt: 请选择语言 / Please choose a language:
+  lang_set: ✅ 语言已切换为简体中文。
+  me_empty: 你还没有参与过任何抽奖。
+  me_header: "你最近参与过的抽奖(最多 {count} 条):"
+  me_row: "• #{id} {title} — 状态:{status}"
+
+common:
+  cancel: 已取消。
+  not_admin: ❌ 你没有管理员权限。
+  in_private_only: 该命令请在与 bot 的私聊中使用。
+  unknown_error: 出错了,请稍后重试。
+
+button:
+  join: ✅ 参加抽奖
+  joined: ✅ 已报名
+  verify: 🛡 前往验证
+  open_channel: 🔗 打开频道
+  refresh: 🔄 刷新
+
+join:
+  ok: 🎉 报名成功!祝你好运。
+  already: 你已经报名过本次抽奖了。
+  banned: 你已被拉黑,无法参加本次抽奖。
+  not_member: "请先加入下列频道再来报名:\n{channels}"
+  ended: 本次抽奖已结束。
+  need_verify: "请先完成人机验证:\n{url}"
+
+giveaway:
+  running_header: "🎁 抽奖 #{id} 进行中"
+  finished_header: "🏁 抽奖 #{id} 已开奖"
+  canceled: "❌ 抽奖 #{id} 已被取消。"
+  no_participants: 无人参与,本次抽奖作废。
+  winners_header: "中奖名单:"
+  winner_line: "• {tier}:{mention}"
+  count_label: "已报名 {count} 人"
+  ends_label: "结束时间:{ends_at}"
+  prizes_label: "奖品分级:\n{prizes}"
+
+winner_dm:
+  body: |
+    🎉 恭喜你在「{title}」中中奖!
+    等级:{tier}
+    请关注抽奖发起人后续联系,或主动联系 {creator}。
+
+fsm:
+  enter_title: "1/7 请发送抽奖标题(/cancel 退出)"
+  enter_description: "2/7 请发送抽奖说明,或发送 - 跳过"
+  enter_prizes: |
+    3/7 请按一行一个等级发送奖品,例如:
+    一等奖:1
+    二等奖:3
+    安慰奖:5
+    中英文冒号皆可。
+  enter_channels: |
+    4/7 请发送参与前必须加入的频道用户名,空格或换行分隔,例如:
+    @your_channel @another_channel
+    无需频道订阅校验,直接发送 -
+  enter_duration: |
+    5/7 请发送倒计时,例如 10m / 2h / 3d,
+    或绝对时间(本地时区):2026-06-10 18:00
+  enter_turnstile: 6/7 是否启用 Cloudflare 验证码?发送 yes / no
+  enter_target: |
+    7/7 抽奖帖发布到哪里?任选一种方式:
+    • 把目标群/频道里的任意一条消息「转发」到这里
+    • 发送 @groupname 或 @channelname
+    • 发送数字 chat_id(例:-1001234567890)
+    注意:bot 必须已经在该群/频道里才能发帖。
+  bad_target: 无法识别目标。请确保 bot 已被加入该群/频道,然后重新发送。
+  confirm: |
+    请确认信息:
+    标题:{title}
+    奖品:
+    {prizes}
+    必加频道:{channels}
+    结束时间:{ends_at}
+    Turnstile:{turnstile}
+    发布到:{target}
+
+    发送 ok 确认,发送 /cancel 退出。
+  bad_prizes: 奖品格式无效,请按 "名称:数量" 一行一个重发,中英文冒号都可以。
+  bad_duration: 时间格式无效,例如 10m / 2h / 2026-06-10 18:00。
+  saved: ✅ 已创建,抽奖将在结束时间自动开奖。
