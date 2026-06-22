@@ -34,8 +34,8 @@ tg-giveaway-bot/
 ### Installation
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/yourusername/tg-giveaway-bot.git
-   cd tg-giveaway-bot
+   git clone https://github.com/Star-Dream-AI/telegram-giveaway-bot.git
+   cd telegram-giveaway-bot
    ```
 
 2. **Set up a Virtual Environment**:
@@ -87,8 +87,8 @@ python -m bot
 ### 安装与运行
 1. **克隆仓库**：
    ```bash
-   git clone https://github.com/yourusername/tg-giveaway-bot.git
-   cd tg-giveaway-bot
+   git clone https://github.com/Star-Dream-AI/telegram-giveaway-bot.git
+   cd telegram-giveaway-bot
    ```
 
 2. **创建虚拟环境**：
