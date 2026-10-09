@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from aiogram import Bot, Router
 from aiogram.filters import Command, StateFilter
@@ -14,10 +14,13 @@ from bot.db.repo import count_participants
 from bot.filters.admin import IsAdmin
 from bot.handlers.common import lang_of
 from bot.i18n import t
+from bot.keyboards.admin import admin_giveaway_panel
 from bot.keyboards.participate import participate_keyboard
 from bot.services import giveaway as gw_service
+from bot.services.channels import validate_channels
 from bot.services.scheduler import GiveawayScheduler
 from bot.settings import get_settings
+from bot.utils.esc import esc_list
 from bot.utils.render import render
 from bot.utils.timeparse import format_local, parse_channels, parse_end_at, parse_prizes
 
@@ -83,9 +86,17 @@ def build_admin_create_router() -> Router:
         await message.answer(t("fsm.enter_channels", lang))
 
     @router.message(GiveawayDraft.waiting_channels)
-    async def step_channels(message: Message, state: FSMContext) -> None:
+    async def step_channels(message: Message, state: FSMContext, bot: Bot) -> None:
         lang = await lang_of(message.from_user.id)
         channels = parse_channels(message.text or "")
+        if channels:
+            # A channel the bot cannot read would make membership checks
+            # fail closed for everybody (TelegramAPIError -> "not a member"),
+            # so the giveaway could never be won. Catch it at creation.
+            missing = await validate_channels(bot, channels)
+            if missing:
+                await message.answer(t("fsm.bad_channels", lang, channels=esc_list(missing)))
+                return
         await state.update_data(channels=channels)
         await state.set_state(GiveawayDraft.waiting_duration)
         await message.answer(t("fsm.enter_duration", lang))
@@ -95,7 +106,7 @@ def build_admin_create_router() -> Router:
         lang = await lang_of(message.from_user.id)
         tz = get_settings().tz
         end_at = parse_end_at(message.text or "", tz)
-        if end_at is None:
+        if end_at is None or end_at <= datetime.now(timezone.utc):
             await message.answer(t("fsm.bad_duration", lang))
             return
         await state.update_data(end_at_iso=end_at.isoformat())
@@ -107,6 +118,12 @@ def build_admin_create_router() -> Router:
         lang = await lang_of(message.from_user.id)
         text = (message.text or "").strip().lower()
         turn = text in {"yes", "y", "1", "true", "on", "是", "开"}
+        if turn and not get_settings().turnstile_capable():
+            # Used to be stored blindly: the post advertised a shield and
+            # participation hardcoded verified=True, so the promise was a
+            # lie. Also PUBLIC_BASE_URL is required to build the verify link.
+            await message.answer(t("admin.turnstile_not_configured", lang))
+            return
         await state.update_data(turnstile=turn)
         await state.set_state(GiveawayDraft.waiting_target)
         await message.answer(t("fsm.enter_target", lang))
@@ -118,13 +135,11 @@ def build_admin_create_router() -> Router:
         target_chat_id: int | None = None
         target_label: str | None = None
 
-        if message.forward_from_chat is not None:
-            target_chat_id = message.forward_from_chat.id
-            target_label = (
-                message.forward_from_chat.title
-                or message.forward_from_chat.username
-                or str(target_chat_id)
-            )
+        origin = message.forward_origin
+        forwarded_chat = getattr(origin, "chat", None) or getattr(origin, "sender_chat", None)
+        if forwarded_chat is not None:
+            target_chat_id = forwarded_chat.id
+            target_label = forwarded_chat.title or forwarded_chat.username or str(target_chat_id)
         else:
             text = (message.text or "").strip()
             ref: str | int | None = None
@@ -147,15 +162,11 @@ def build_admin_create_router() -> Router:
             await message.answer(t("fsm.bad_target", lang))
             return
 
-        await state.update_data(
-            target_chat_id=target_chat_id, target_label=target_label
-        )
+        await state.update_data(target_chat_id=target_chat_id, target_label=target_label)
 
         data = await state.get_data()
         end_at = datetime.fromisoformat(data["end_at_iso"])
-        prizes_lines = "\n".join(
-            f"• {p['name']} × {p['count']}" for p in data["prizes"]
-        )
+        prizes_lines = "\n".join(f"• {p['name']} × {p['count']}" for p in data["prizes"])
         channels_text = " ".join(data["channels"]) if data["channels"] else "-"
         await state.set_state(GiveawayDraft.waiting_confirm)
         await message.answer(
@@ -189,6 +200,10 @@ def build_admin_create_router() -> Router:
         end_at = datetime.fromisoformat(data["end_at_iso"])
         tz_name = get_settings().tz
         target_chat_id = int(data["target_chat_id"])
+        if end_at <= datetime.now(timezone.utc):
+            await state.set_state(GiveawayDraft.waiting_duration)
+            await message.answer(t("fsm.bad_duration", lang))
+            return
 
         gw = await gw_service.create(
             creator_id=message.from_user.id,
@@ -225,6 +240,10 @@ def build_admin_create_router() -> Router:
             )
         except Exception:
             log.exception("send giveaway post failed: chat_id=%s", target_chat_id)
+            # The row is already committed; leaving it "running" with no
+            # message and no scheduled draw produces a giveaway that can
+            # never be joined and never fires.
+            await gw_service.cancel(gw.id)
             await message.answer(t("common.unknown_error", lang))
             await state.clear()
             return
@@ -232,7 +251,9 @@ def build_admin_create_router() -> Router:
         await gw_service.attach_message(gw.id, sent.chat.id, sent.message_id)
         scheduler.schedule(gw.id, gw.end_at)
 
-        await message.answer(t("fsm.saved", lang))
+        # Admin controls stay in the admin chat on purpose: the public post
+        # only carries the join button.
+        await message.answer(t("fsm.saved", lang), reply_markup=admin_giveaway_panel(gw.id))
         await state.clear()
 
     return router

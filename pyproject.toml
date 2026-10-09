@@ -17,3 +17,11 @@ ignore = ["E501"]
 [tool.black]
 line-length = 100
 target-version = ["py311"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Every coroutine test in this suite is written as a bare `async def`;
+# per-test markers would be noise.
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = ["ignore::DeprecationWarning"]

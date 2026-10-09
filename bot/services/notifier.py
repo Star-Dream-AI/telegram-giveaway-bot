@@ -6,51 +6,97 @@ from typing import Sequence
 from aiogram import Bot
 
 from bot.db.base import get_sessionmaker
-from bot.db.models import Giveaway
+from bot.db.repo import (
+    GiveawayView,
+    TierShortfall,
+    get_giveaway_view,
+    list_winners,
+    mark_winner_notified,
+)
 from bot.i18n import t
 from bot.settings import get_settings
+from bot.utils.esc import esc, user_mention
 
 log = logging.getLogger("bot.services.notifier")
+
+NL = "\n"
+
+
+async def _winner_langs(session, winner_ids: Sequence[int]) -> dict[int, str]:
+    if not winner_ids:
+        return {}
+    from sqlalchemy import select
+
+    from bot.db.models import User
+
+    stmt = select(User).where(User.user_id.in_(list(winner_ids)))
+    return {u.user_id: u.lang for u in (await session.execute(stmt)).scalars().all() if u.lang}
 
 
 async def publish_winners(
     bot: Bot,
-    giveaway: Giveaway,
+    giveaway: GiveawayView,
     winners: Sequence[tuple[int, str]],
+    *,
+    shortfalls: Sequence[TierShortfall] = (),
+    reason: str = "draw",
 ) -> None:
-    # 1. Fetch creator and winner users from database in one session
-    creator_username = None
+    """Announce a draw under the original post and DM every winner.
+
+    ``giveaway`` is a frozen :class:`GiveawayView`, not a live ORM row —
+    the caller has already left its session, and relying on
+    ``expire_on_commit=False`` to keep a detached instance readable was an
+    invisible contract that breaks the moment someone aligns the
+    sessionmaker with the SQLAlchemy default.
+
+    Every DM outcome is now persisted (``notified_ok`` / ``notify_error`` /
+    ``notified_at``) via ``mark_winner_notified``; previously the result was
+    logged and forgotten, so a failed delivery left no trace and no way to
+    retry selectively.
+    """
+    default_lang = get_settings().default_lang
     winner_langs: dict[int, str] = {}
+    creator_username: str | None = None
 
     sm = get_sessionmaker()
     async with sm() as session:
         from bot.db.models import User as DBUser
-        creator_user = await session.get(DBUser, giveaway.creator_id)
-        if creator_user:
-            creator_username = creator_user.username
 
-        if winners:
-            winner_ids = [w[0] for w in winners]
-            from sqlalchemy import select
-            stmt = select(DBUser).where(DBUser.user_id.in_(winner_ids))
-            res = await session.execute(stmt)
-            for u in res.scalars().all():
-                if u.lang:
-                    winner_langs[u.user_id] = u.lang
+        creator = await session.get(DBUser, giveaway.creator_id)
+        if creator is not None:
+            creator_username = creator.username
+        winner_langs = await _winner_langs(session, [w[0] for w in winners])
 
-    # 2. Publish winners to the original channel/group
-    lang = None  # Channel/group posts default to bot default_lang
+    # 1. public announcement, replied under the giveaway post
+    lines = []
+    if reason != "draw":
+        lines.append(t("giveaway.reroll_header", default_lang, id=giveaway.id))
+    lines.append(t("giveaway.finished_header", default_lang, id=giveaway.id))
     if not winners:
-        text = t("giveaway.no_participants", lang)
+        lines.append(
+            t(
+                "giveaway.no_participants" if reason == "draw" else "giveaway.no_winners",
+                default_lang,
+            )
+        )
     else:
-        lines = [
-            t("giveaway.finished_header", lang, id=giveaway.id),
-            t("giveaway.winners_header", lang),
-        ]
+        lines.append(t("giveaway.winners_header", default_lang))
         for user_id, tier in winners:
-            mention = f'<a href="tg://user?id={user_id}">{user_id}</a>'
-            lines.append(t("giveaway.winner_line", lang, tier=tier, mention=mention))
-        text = "\n".join(lines)
+            lines.append(
+                t("giveaway.winner_line", default_lang, tier=tier, mention=user_mention(user_id))
+            )
+    for short in shortfalls:
+        lines.append(
+            t(
+                "giveaway.tier_short",
+                default_lang,
+                tier=short.tier,
+                requested=short.requested,
+                granted=short.granted,
+                missing=short.missing,
+            )
+        )
+    text = NL.join(lines)
 
     if giveaway.chat_id and giveaway.message_id:
         try:
@@ -62,29 +108,97 @@ async def publish_winners(
         except Exception:
             log.exception("publish_winners: send_message failed")
 
-    # 3. Send private messages (DMs) to winners
+    # 2. private winner notifications, each with a persisted outcome
     for user_id, tier in winners:
-        winner_lang = winner_langs.get(user_id) or get_settings().default_lang
-
-        # Format the creator reference depending on whether they have a username or just an ID
+        winner_lang = winner_langs.get(user_id) or default_lang
         if creator_username:
-            creator_str = f"@{creator_username}"
+            creator_str = esc(f"@{creator_username}")
         else:
-            if winner_lang == "zh":
-                creator_str = f'<a href="tg://user?id={giveaway.creator_id}">管理员 (ID: {giveaway.creator_id})</a>'
-            else:
-                creator_str = f'<a href="tg://user?id={giveaway.creator_id}">Host (ID: {giveaway.creator_id})</a>'
-
-        try:
-            await bot.send_message(
-                user_id,
-                t(
-                    "winner_dm.body",
-                    winner_lang,
-                    title=giveaway.title,
-                    tier=tier,
-                    creator=creator_str,
-                ),
+            creator_str = user_mention(
+                giveaway.creator_id,
+                t("winner_dm.host", winner_lang, id=giveaway.creator_id),
             )
-        except Exception:
-            log.warning("winner DM failed for %d", user_id)
+        body = t(
+            "winner_dm.body",
+            winner_lang,
+            title=giveaway.title,
+            tier=tier,
+            creator=creator_str,
+        )
+        error: str | None = None
+        ok = True
+        try:
+            await bot.send_message(user_id, body)
+        except Exception as exc:
+            ok = False
+            error = f"{type(exc).__name__}: {exc}"
+            log.warning("winner DM failed for %d: %s", user_id, error)
+        await _record_delivery(giveaway.id, user_id, tier, ok, error)
+
+
+async def _record_delivery(
+    giveaway_id: int, user_id: int, tier: str, ok: bool, error: str | None
+) -> None:
+    """Write notified_at / notified_ok / notify_error for one winner row."""
+    sm = get_sessionmaker()
+    async with sm() as session:
+        rows = [
+            w
+            for w in await list_winners(session, giveaway_id)
+            if w.user_id == user_id and w.tier_name == tier
+        ]
+        for row in rows:
+            await mark_winner_notified(session, row.id, ok=ok, error=error)
+        await session.commit()
+
+
+async def retry_pending(bot: Bot, giveaway_id: int) -> int:
+    """Re-send DMs for winners whose delivery was never confirmed.
+
+    Includes both unattempted and failed current winners. Returns the
+    number of messages actually sent; superseded winners are never retried.
+    """
+    from bot.db.repo import pending_notifications
+
+    sm = get_sessionmaker()
+    async with sm() as session:
+        rows = await pending_notifications(session, giveaway_id)
+        giveaway = await get_giveaway_view(session, giveaway_id)
+        langs = await _winner_langs(session, [r.user_id for r in rows])
+        jobs = [(r.id, r.user_id, r.tier_name) for r in rows]
+    if giveaway is None or not jobs:
+        return 0
+
+    default_lang = get_settings().default_lang
+    sm = get_sessionmaker()
+    async with sm() as session:
+        from bot.db.models import User as DBUser
+
+        creator = await session.get(DBUser, giveaway.creator_id)
+        creator_username = creator.username if creator else None
+
+    sent = 0
+    for row_id, user_id, tier in jobs:
+        winner_lang = langs.get(user_id) or default_lang
+        creator_str = (
+            esc(f"@{creator_username}")
+            if creator_username
+            else user_mention(
+                giveaway.creator_id, t("winner_dm.host", winner_lang, id=giveaway.creator_id)
+            )
+        )
+        body = t(
+            "winner_dm.body", winner_lang, title=giveaway.title, tier=tier, creator=creator_str
+        )
+        ok, error = True, None
+        try:
+            await bot.send_message(user_id, body)
+            sent += 1
+        except Exception as exc:
+            ok, error = False, f"{type(exc).__name__}: {exc}"
+        sm = get_sessionmaker()
+        async with sm() as session:
+            await mark_winner_notified(session, row_id, ok=ok, error=error)
+            await session.commit()
+    log.info("retry_pending: re-sent %d/%d winner DMs", sent, len(jobs))
+    return sent

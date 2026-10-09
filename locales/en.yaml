@@ -1,10 +1,14 @@
 # =============================================================================
 # English localization / 英文文案
-# Edit all English messages of the giveaway bot here.
-# Each key should match zh.yaml.
+# Every key must also exist in zh.yaml - a test enforces parity.
 # -----------------------------------------------------------------------------
 # Placeholders / 占位符:
-#   {title}, {id}, {count}, {tier}, {channels}, {ends_at}, {prizes}, {target}
+#   {title} {id} {count} {tier} {channels} {ends_at} {prizes} {target} {url}
+#   {requested} {granted} {missing} {user_id} {status} {reason} {n}
+#
+# Values are rendered as Telegram HTML (ParseMode.HTML).  Every value that
+# is interpolated goes through bot.utils.esc.esc() first, so an admin title
+# like "R&D key" can no longer break entity parsing.
 # =============================================================================
 
 start:
@@ -21,46 +25,67 @@ start:
 
     Admin commands (admins only)
     • /newgiveaway — Create a new giveaway
-    • /list — Running giveaways I created
+    • /list — All running giveaways
     • /cancel <id> — Cancel a giveaway
-    • /reroll <id> <tier> — Re-roll a prize tier
-    • /ban <user_id> [reason] — Blacklist a user
+    • /reroll <id> <tier> — Re-draw a finished tier
+    • /retry <id> — Retry undelivered winner messages
+    • /ban <user_id> [reason] — Blacklist a user (removes their entries)
     • /unban <user_id> — Remove from blacklist
     • /addadmin <user_id> — Promote a user to admin
-  lang_prompt: Please choose a language / 请选择语言:
-  lang_set: ✅ Language set to English.
+  lang_prompt: "Please choose a language / 请选择语言:"
+  lang_set: "✅ Language set to {language}."
+  lang_unchanged: "Your language is already {language}."
   me_empty: You haven't joined any giveaways yet.
   me_header: "Your recent giveaways (last {count}):"
   me_row: "• #{id} {title} — status: {status}"
 
 common:
   cancel: Canceled.
-  not_admin: ❌ You are not an admin.
+  not_admin: "❌ You are not an admin."
   in_private_only: Please use this command in a private chat with the bot.
-  unknown_error: Something went wrong, please retry later.
+  unknown_error: "Something went wrong, please retry later."
+  admin_only_hint: "Send /help to see what is available to you."
 
 button:
-  join: ✅ Join
-  joined: ✅ Joined
-  verify: 🛡 Verify
-  open_channel: 🔗 Open channel
-  refresh: 🔄 Refresh
+  join: "✅ Join"
+  joined: "✅ Joined"
+  verify: "🛡 Verify"
+  open_channel: "🔗 Open channel"
+  refresh: "🔄 Refresh"
+  open_bot: "Open the bot"
 
 join:
-  ok: 🎉 You're in! Good luck.
+  ok: "🎉 You're in! Good luck."
   already: You've already joined this giveaway.
   banned: You are blacklisted from this giveaway.
-  not_member: "Please join the following channels first:\n{channels}"
+  not_member: |
+    Please join the following channels first:
+    {channels}
   ended: This giveaway has ended.
   need_verify: "Please complete the captcha first:\n{url}"
+  need_verify_prompt: Solve the captcha below, then come back to the bot.
+  verify_no_token: The captcha response was empty. Please try again.
+  verify_failed: The captcha could not be verified. Please try again.
+  verify_ok: "✅ Captcha passed."
+  verify_return: Now press the button below to return to the bot and join.
+  verify_return_no_link: Return to the bot and press the join button again.
+  verify_expired: This verification link has expired. Please request a new one.
+  verify_sent: The verification button has been sent to your private chat with the bot.
+  open_bot_first: Open the bot, send /start, then press Join again to receive the verification link.
+  verify_join_prompt: "✅ Captcha passed. Press Join below to complete your entry."
 
 giveaway:
   running_header: "🎁 Giveaway #{id} — running"
   finished_header: "🏁 Giveaway #{id} — finished"
+  reroll_header: "🎲 Giveaway #{id} — tier re-drawn"
   canceled: "❌ Giveaway #{id} has been canceled."
   no_participants: No participants — giveaway voided.
+  no_winners: No eligible winners for this draw.
   winners_header: "Winners:"
   winner_line: "• {tier}: {mention}"
+  tier_short: |
+    ⚠️ {tier}: only {granted} of {requested} prize(s) could be awarded
+       ({missing} shortfall). Not enough eligible participants.
   count_label: "{count} joined"
   ends_label: "Ends at: {ends_at}"
   prizes_label: "Prizes:\n{prizes}"
@@ -70,42 +95,70 @@ winner_dm:
     🎉 Congrats! You won at "{title}".
     Tier: {tier}
     The host will follow up shortly, or DM {creator}.
+  host: "the host (ID: {id})"
 
+admin:
+  list_empty: No running giveaways.
+  list_header: "🎁 {count} running giveaway(s):"
+  list_row: "• #{id} {title} → {ends_at} (👥 {count})"
+  usage_cancel: "usage: /cancel <id>"
+  usage_reroll: "usage: /reroll <id> <tier_name>"
+  usage_ban: "usage: /ban <user_id> [reason]"
+  usage_unban: "usage: /unban <user_id>"
+  usage_addadmin: "usage: /addadmin <user_id>"
+  usage_retry: "usage: /retry <giveaway_id>"
+  retry_ok: "#{id}: delivered {count} pending winner message(s)."
+  cancel_ok: "❌ Giveaway #{id} has been canceled."
+  cancel_missing: "#{id} is not running, or it does not exist."
+  reroll_ok: "🎲 #{id} / {tier}: {count} new winner(s)."
+  reroll_running: "#{id} is still running — reroll only works after it has finished."
+  reroll_canceled: "#{id} was canceled, so there is nothing to re-draw."
+  reroll_no_tier: "Giveaway #{id} has no tier called {tier}."
+  reroll_empty: "#{id} / {tier}: nobody eligible is left to win."
+  ban_ok: "🚫 {user_id} banned. Removed from {n} giveaway entry(ies)."
+  ban_ok_none: "🚫 {user_id} banned. No active entries to remove."
+  unban_ok: "✅ {user_id} removed from the blacklist."
+  addadmin_ok: "✅ {user_id} is now an admin."
+  turnstile_not_configured: |
+    ⚠️ Turnstile is not configured on this deployment
+    (TURNSTILE_ENABLED / TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY, plus
+    PUBLIC_BASE_URL so users can open the verification page).
+    Configure Turnstile, or answer no to continue without a captcha.
+  btn_cancel: Cancel this giveaway
+
+# Wizard for /newgiveaway.  Steps are numbered so an admin can see where
+# they are; the draft lives in FSM state until the final "ok".
 fsm:
-  enter_title: "1/7 Send the giveaway title (/cancel to abort)"
-  enter_description: "2/7 Send the giveaway description, or send - to skip"
+  enter_title: "Giveaway title (1/7):"
+  enter_description: "Description (2/7), or - to skip:"
   enter_prizes: |
-    3/7 Send prize tiers, one per line, e.g.
-    First:1
-    Second:3
-    Consolation:5
-    Both ASCII and full-width colons are accepted.
+    Prize tiers (3/7), one per line:
+    name: count
+    e.g.
+    Steam card: 2
+    R&D key: 1
+  bad_prizes: |
+    Could not parse that.  Every line must look like "name: count",
+    for example "Steam card: 2".
   enter_channels: |
-    4/7 Send required channel usernames separated by spaces or newlines, e.g.
-    @your_channel @another_channel
-    Send - to skip channel-membership checks.
-  enter_duration: |
-    5/7 Send a countdown like 10m / 2h / 3d,
-    or an absolute local time: 2026-06-10 18:00
-  enter_turnstile: 6/7 Require Cloudflare captcha? Send yes / no
-  enter_target: |
-    7/7 Where should the giveaway post go? Choose one:
-    • Forward any message FROM the target group/channel here
-    • Send @groupname or @channelname
-    • Send the numeric chat_id (e.g. -1001234567890)
-    Note: the bot must already be a member of the target chat.
-  bad_target: Cannot resolve target. Make sure the bot has been added to the chat, then retry.
+    Required channels (4/7), one @channel per line,
+    or - to skip.  The bot must already be an administrator of every channel
+    you list, and members are checked at join time.
+  bad_channels: |
+    The bot cannot use these channels — add it as an admin first:
+    {channels}
+  enter_duration: "Ends at (5/7): a duration like 2h / 3d / 1w, or an absolute time:"
+  bad_duration: Could not read that time. Try "30m", "6h", "3d" or "2026-01-31 20:00".
+  enter_turnstile: "Require a Cloudflare Turnstile captcha for joining? (6/7) yes/no:"
+  enter_target: "Post it where (7/7): forward a channel post, or send @channel or the chat id:"
+  bad_target: "Could not resolve that target. Forward a message from the channel, or send @channel."
   confirm: |
-    Please confirm:
+    Please check:
     Title: {title}
-    Prizes:
-    {prizes}
-    Required channels: {channels}
+    Prizes: {prizes}
+    Channels: {channels}
     Ends at: {ends_at}
-    Turnstile: {turnstile}
-    Posting to: {target}
-
-    Send ok to confirm, /cancel to abort.
-  bad_prizes: Invalid prize format. Use "name:count" one per line (ASCII or full-width colon).
-  bad_duration: Invalid duration. Try 10m / 2h / 2026-06-10 18:00.
-  saved: ✅ Saved. The giveaway will be drawn automatically when it ends.
+    Captcha: {turnstile}
+    Post to: {target}
+    Send "ok" to publish, or /cancel to abort.
+  saved: "✅ Giveaway published. Keep this message for controls:"

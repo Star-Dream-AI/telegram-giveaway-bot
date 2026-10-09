@@ -26,4 +26,4 @@ def register_webhook(
         secret_token=settings.webhook_secret,
     ).register(app, path=settings.webhook_path)
     setup_application(app, dp, bot=bot)
-    log.info("webhook handler registered at %s", settings.webhook_path)
+    log.info("webhook handler registered: %s", settings.masked_webhook_url())
